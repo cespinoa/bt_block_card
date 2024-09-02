@@ -1,0 +1,274 @@
+<?php
+
+/**
+ * @file
+ * Primary module hooks for Bootstrap Toolbox Block to Card module.
+ *
+ * It's not possible to add third party settings to block_content entities in Layout builder 
+ * 
+ */
+
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\layout_builder\Form\ConfigureBlockFormBase;
+use Drupal\Component\Utility\NestedArray;
+
+/**
+ * Implements hook_theme().
+ */
+function bt_block_card_theme($existing, $type, $theme, $path) {
+
+  return [
+    'bt_block_card' => [
+      'render element' => 'elements',
+      'template' => 'bt-block-card', 
+      'path' => $path . '/templates',
+    ],
+  ];
+}
+
+/**
+ *
+ * Provide form controls for normal blocks and blocks in layout builder
+ *
+ * @params bool $themeAsCard
+ * @params string $cardStyle
+ * @params string $cardStyleOptions
+ * @params string $headerStyle
+ * @params string $headerStyleOptions
+ * @params string $bodyStyle
+ * @params string $bodyStyleOptions
+ * @params string $visibilityControl
+ *
+ * @returns array
+ * 
+ * */
+function _bt_get_controls($themeAsCard, $cardStyle, $cardStyleOptions, $headerStyle, $headerStyleOptions, $bodyStyle, $bodyStyleOptions, $visibilityControl): array{
+
+  $controls['theme_as_card'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Theme as a card'),
+    '#default_value' => $themeAsCard,
+  ];
+
+  $controls['card_style'] = [
+    '#type' => 'select',
+    '#title' => t('Card style'),
+    '#default_value' => $cardStyle,
+    '#options' => $cardStyleOptions,
+    '#empty_option' => 'None',
+    '#states' => [
+      'visible' => [
+        ':input[name="' . $visibilityControl . '[theme_as_card]"]' => ['checked' => TRUE],
+      ],
+    ],
+  ];
+  
+  $controls['header_style'] = [
+    '#type' => 'select',
+    '#title' => t('Header style'),
+    '#default_value' => $headerStyle,
+    '#options' => $headerStyleOptions,
+    '#empty_option' => 'None',
+    '#states' => [
+      'visible' => [
+        ':input[name="' . $visibilityControl . '[theme_as_card]"]' => ['checked' => TRUE],
+      ],
+    ],
+  ];
+  
+  $controls['body_style'] = [
+    '#type' => 'select',
+    '#title' => t('Body style'),
+    '#default_value' => $bodyStyle ,
+    '#options' => $bodyStyleOptions,
+    '#empty_option' => 'None',
+    '#states' => [
+      'visible' => [
+        ':input[name="' . $visibilityControl . '[theme_as_card]"]' => ['checked' => TRUE],
+      ],
+    ],
+  ];
+
+  return $controls;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function bt_block_card_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $utilityservice = \Drupal::service('bootstrap_toolbox.utility_service');
+  $cardStyleOptions = $utilityservice->getScopeListFiltered(['cards_formatters']);
+  $headerStyleOptions = $utilityservice->getScopeListFiltered(['header_cards_formatters']);
+  $bodyStyleOptions = $utilityservice->getScopeListFiltered(['body_cards_formatters']);
+  
+  if($form_id=='block_form'){
+    $block = $form_state->getFormObject()->getEntity();
+    $themeAsCard = $block->getThirdPartySetting('bt_block_to_card', 'theme_as_card', FALSE);
+    $cardStyle = $block->getThirdPartySetting('bt_block_to_card', 'card_style', FALSE); 
+    $headerStyle =  $block->getThirdPartySetting('bt_block_to_card', 'header_style', FALSE);
+    $bodyStyle = $block->getThirdPartySetting('bt_block_to_card', 'body_style', FALSE);
+    $visibilityControl = 'bt_block_to_card';
+    
+    $form['bt_block_to_card'] = [
+      '#type' => 'details',
+      '#title' => t('Theme as a card'),
+      '#collapsible' => TRUE,
+      '#collapsed' => FALSE,
+      '#group' => 'bootstrap_toolbox_verticaltabs',
+    ];
+
+    $controls = _bt_get_controls($themeAsCard, $cardStyle, $cardStyleOptions, $headerStyle, $headerStyleOptions, $bodyStyle, $bodyStyleOptions, $visibilityControl);
+    foreach($controls as $key=>$control){
+      $form['bt_block_to_card'][$key] = $control;
+    }
+
+    $form['actions']['submit']['#submit'][] = 'bt_block_card_form_alter_submit';
+
+  } elseif($form['#form_id'] === 'layout_builder_add_block' || $form['#form_id'] === 'layout_builder_update_block') {
+    /** @var \Drupal\layout_builder\Form\ConfigureBlockFormBase $formObject */
+    $formObject = $form_state->getFormObject();
+
+    $component = $formObject->getCurrentComponent();
+    $blockPluginId = $component->getPluginId();
+    
+    // If this is a reusable block, retrieve the block bundle.
+    if (strpos($blockPluginId, 'block_content:') === 0) {
+      $settings = $component->get('bootstrap_toolbox_blockstyle');
+      
+      $themeAsCard = $settings['theme_as_card'] ?? FALSE;
+      $cardStyle = $settings['card_style'] ?? FALSE;
+      $headerStyle = $settings['header_style'] ?? FALSE;
+      $bodyStyle = $settings['body_style'] ?? FALSE;
+      $visibilityControl  = 'bootstrap_toolbox';
+
+      $controls = _bt_get_controls($themeAsCard, $cardStyle, $cardStyleOptions, $headerStyle, $headerStyleOptions, $bodyStyle, $bodyStyleOptions, $visibilityControl );
+      foreach($controls as $key=>$control){
+        $form['bootstrap_toolbox'][$key] = $control;
+      }
+      array_unshift($form['#submit'], 'bt_block_to_card_submit_block_form');
+    }
+  }
+  
+  
+}
+
+
+/**
+ * Custom submit handler for submitting LB block forms.
+ *
+ * Persists the configured block style to the component configuration data,
+ * which is later persisted to section storage by layout builder's base form.
+ */
+function bt_block_to_card_submit_block_form(array $form, \Drupal\Core\Form\FormStateInterface $form_state) {
+  /** @var \Drupal\layout_builder\Form\ConfigureBlockFormBase $formObject */
+  $formObject = $form_state->getFormObject();
+  $component = $formObject->getCurrentComponent();
+  $settings = $form_state->getValue('bootstrap_toolbox');
+  $newSettings = $component->get('bootstrap_toolbox_blockstyle');
+  $newSettings['theme_as_card'] = $settings['theme_as_card'];
+  $newSettings['card_style'] = $settings['card_style'];
+  $newSettings['header_style'] = $settings['header_style'];
+  $newSettings['body_style'] = $settings['body_style'];
+  $component->set('bootstrap_toolbox_blockstyle', $newSettings);
+}
+
+
+/**
+ *
+ * Process block alter form with third party settings
+ *
+ */ 
+function bt_block_card_form_alter_submit($form, \Drupal\Core\Form\FormStateInterface $formState) {
+  $block = $formState->getFormObject()->getEntity();
+  $settings = $formState->getValue('bt_block_to_card');
+  $block->setThirdPartySetting('bt_block_to_card','theme_as_card', $settings['theme_as_card']);
+  $block->setThirdPartySetting('bt_block_to_card','card_style', $settings['card_style']);
+  $block->setThirdPartySetting('bt_block_to_card','header_style', $settings['header_style']);
+  $block->setThirdPartySetting('bt_block_to_card','body_style', $settings['body_style']);
+  $block->save();
+}
+
+/**
+ * Implements hook_block_view_alter().
+ */
+function bt_block_card_block_view_alter(array &$build, \Drupal\Core\Block\BlockPluginInterface $block) {
+  $entityBlock = $build['#block'];
+  $themeAsCard = $entityBlock->getThirdPartySetting('bt_block_to_card', 'theme_as_card', FALSE);
+  if( $themeAsCard){
+    $utilityservice = \Drupal::service('bootstrap_toolbox.utility_service');
+    $build['#configuration']['theme_as_card'] = TRUE;
+    $cardStyle = $entityBlock->getThirdPartySetting('bt_block_to_card', 'card_style', FALSE);
+    $headerStyle = $entityBlock->getThirdPartySetting('bt_block_to_card', 'header_style', FALSE);
+    $bodyStyle = $entityBlock->getThirdPartySetting('bt_block_to_card', 'body_style', FALSE);
+    $build['#from_layout_builder'] = FALSE;  // Is used in twig template
+    if($cardStyle){
+      $build['#configuration']['card_classes'] = $utilityservice->getStyleById($cardStyle);
+    }
+    if($headerStyle){
+      $build['#configuration']['header_classes'] = $utilityservice->getStyleById($headerStyle);
+    }
+    if($bodyStyle){
+      $build['#configuration']['body_classes'] = $utilityservice->getStyleById($bodyStyle);
+    }
+    $build['#theme'] = 'bt_block_card';
+    
+  }
+}
+
+
+/**
+ * Implements hook_preprocess_HOOK() for block templates.
+ */
+function bt_block_card_preprocess_bt_block_card(&$variables) {
+  if (isset($variables['elements']['#configuration']['theme_as_card']) && $variables['elements']['#configuration']['theme_as_card'] ) {
+    foreach($variables['elements']['#configuration'] as $key=>$value){
+      $variables[$key] = $value;
+    }
+    $variables['content']  = $variables['elements']['content'];
+  }
+}
+
+/**
+ * Implements hook_preprocess_HOOK().
+ *
+ * Preprocess inline-blocks from Layout Builder
+ * 
+ */
+function bt_block_card_preprocess_layout(&$variables){
+  if(array_key_exists('content',$variables['content'])){
+    foreach($variables['content']['content'] as $key=>$content){
+      if($key!='#attributes'){
+        if (array_key_exists('#plugin_id',$content) && strpos($content['#plugin_id'], 'block_content:') === 0) {
+          if( NestedArray::getValue($content,['#bootstrap_toolbox_blockstyle','theme_as_card'], $keyExists) ){
+            $settings = $content['#bootstrap_toolbox_blockstyle'];
+            $themeAsCard = $settings['theme_as_card'];
+            $cardStyle = $settings['card_style'];
+            $headerStyle = $settings['header_style'];
+            $bodyStyle = $settings['body_style'];
+            $variables['content']['content'][$key]['#theme'] = 'bt_block_card';
+            
+            $block = $variables['content']['content'][$key]['content']['#block_content'];
+            $block_content = \Drupal::entityTypeManager()
+            ->getViewBuilder('block_content')
+            ->view($block, 'full');
+
+            $variables['content']['content'][$key]['content'] = $block_content;
+
+            if($variables['content']['content'][$key]['#configuration']['label_display'] == 'visible' ){
+              $variables['content']['content'][$key]['label'] = [$variables['content']['content'][$key]['#configuration']['label']];
+            } else {
+              $variables['content']['content'][$key]['label'] ='';
+            }
+            $utilityservice = \Drupal::service('bootstrap_toolbox.utility_service');
+            $variables['content']['content'][$key]['#from_layout_builder'] = TRUE;
+            $variables['content']['content'][$key]['#card_classes'] = $utilityservice->getStyleById($cardStyle);
+            $variables['content']['content'][$key]['#header_classes'] = $utilityservice->getStyleById($headerStyle);
+            $variables['content']['content'][$key]['#body_classes'] = $utilityservice->getStyleById($bodyStyle);
+
+          }
+        }
+      }
+    }
+  }
+}
