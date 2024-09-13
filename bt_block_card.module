@@ -97,10 +97,10 @@ function _bt_get_controls($themeAsCard, $cardStyle, $cardStyleOptions, $headerSt
  * Implements hook_form_alter().
  */
 function bt_block_card_form_alter(&$form, FormStateInterface $form_state, $form_id) {
-  $utilityservice = \Drupal::service('bootstrap_toolbox.utility_service');
-  $cardStyleOptions = $utilityservice->getScopeListFiltered(['cards_formatters']);
-  $headerStyleOptions = $utilityservice->getScopeListFiltered(['header_cards_formatters']);
-  $bodyStyleOptions = $utilityservice->getScopeListFiltered(['body_cards_formatters']);
+  $utilityService = \Drupal::service('bootstrap_toolbox.utility_service');
+  $cardStyleOptions = $utilityService->getScopeListFiltered(['cards_formatters']);
+  $headerStyleOptions = $utilityService->getScopeListFiltered(['header_cards_formatters']);
+  $bodyStyleOptions = $utilityService->getScopeListFiltered(['body_cards_formatters']);
   
   if($form_id=='block_form'){
     $block = $form_state->getFormObject()->getEntity();
@@ -196,20 +196,20 @@ function bt_block_card_block_view_alter(array &$build, \Drupal\Core\Block\BlockP
   $entityBlock = $build['#block'];
   $themeAsCard = $entityBlock->getThirdPartySetting('bt_block_to_card', 'theme_as_card', FALSE);
   if( $themeAsCard){
-    $utilityservice = \Drupal::service('bootstrap_toolbox.utility_service');
+    $utilityService = \Drupal::service('bootstrap_toolbox.utility_service');
     $build['#configuration']['theme_as_card'] = TRUE;
     $cardStyle = $entityBlock->getThirdPartySetting('bt_block_to_card', 'card_style', FALSE);
     $headerStyle = $entityBlock->getThirdPartySetting('bt_block_to_card', 'header_style', FALSE);
     $bodyStyle = $entityBlock->getThirdPartySetting('bt_block_to_card', 'body_style', FALSE);
     $build['#from_layout_builder'] = FALSE;  // Is used in twig template
     if($cardStyle){
-      $build['#configuration']['card_classes'] = $utilityservice->getStyleById($cardStyle);
+      $build['#configuration']['card_classes'] = $utilityService->getStyleById($cardStyle);
     }
     if($headerStyle){
-      $build['#configuration']['header_classes'] = $utilityservice->getStyleById($headerStyle);
+      $build['#configuration']['header_classes'] = $utilityService->getStyleById($headerStyle);
     }
     if($bodyStyle){
-      $build['#configuration']['body_classes'] = $utilityservice->getStyleById($bodyStyle);
+      $build['#configuration']['body_classes'] = $utilityService->getStyleById($bodyStyle);
     }
     $build['#theme'] = 'bt_block_card';
     
@@ -249,22 +249,22 @@ function bt_block_card_preprocess_layout(&$variables){
             $variables['content']['content'][$key]['#theme'] = 'bt_block_card';
             
             $block = $variables['content']['content'][$key]['content']['#block_content'];
-            $block_content = \Drupal::entityTypeManager()
+            $blockContent = \Drupal::entityTypeManager()
             ->getViewBuilder('block_content')
             ->view($block, 'full');
 
-            $variables['content']['content'][$key]['content'] = $block_content;
+            $variables['content']['content'][$key]['content'] = $blockContent;
 
             if($variables['content']['content'][$key]['#configuration']['label_display'] == 'visible' ){
               $variables['content']['content'][$key]['label'] = [$variables['content']['content'][$key]['#configuration']['label']];
             } else {
               $variables['content']['content'][$key]['label'] ='';
             }
-            $utilityservice = \Drupal::service('bootstrap_toolbox.utility_service');
+            $utilityService = \Drupal::service('bootstrap_toolbox.utility_service');
             $variables['content']['content'][$key]['#from_layout_builder'] = TRUE;
-            $variables['content']['content'][$key]['#card_classes'] = $utilityservice->getStyleById($cardStyle);
-            $variables['content']['content'][$key]['#header_classes'] = $utilityservice->getStyleById($headerStyle);
-            $variables['content']['content'][$key]['#body_classes'] = $utilityservice->getStyleById($bodyStyle);
+            $variables['content']['content'][$key]['#card_classes'] = $utilityService->getStyleById($cardStyle);
+            $variables['content']['content'][$key]['#header_classes'] = $utilityService->getStyleById($headerStyle);
+            $variables['content']['content'][$key]['#body_classes'] = $utilityService->getStyleById($bodyStyle);
 
           }
         }
