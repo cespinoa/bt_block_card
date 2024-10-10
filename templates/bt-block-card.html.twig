@@ -49,9 +49,11 @@
     'block-removed-class',
     'block-' ~ configuration.provider|clean_class,
     'card',
+    'mb-4',
     card_classes
   ]
 %}
+
 <div{{ attributes.addClass(classes) }}>
   {% if label %}
     <div class="card-header {{ header_classes }}">
@@ -68,6 +70,11 @@
     {% endblock %}
 
   </div>
+
+  {% if id == 'bt_toc_block' and add_affix_control %}
+  <div class="card-footer text-end text-right">
+    <button type="button" id="toggle-sticky" class="btn toc-button unpin-button" data-bs-toggle="tooltip" data-bs-placement="top" title="Pin/Unpin TOC"></button>
+  </div>
+  
+  {% endif %}
 </div>
-
-
